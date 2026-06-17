@@ -6,6 +6,7 @@ from bot.db import Database
 from bot.keyboards import main_keyboard
 from bot.services.quota import QuotaService
 from bot.services.timer import StartResultKind, StopResultKind, TimerService
+from bot.texts import HELP_TEXT, format_status_message
 
 router = Router()
 
@@ -87,3 +88,36 @@ async def on_stop(callback: CallbackQuery, db: Database, settings: Settings) -> 
         text += "\n\n⛔ Лимит на эту неделю исчерпан. До понедельника 00:00 (Астана)."
 
     await callback.message.answer(text, reply_markup=main_keyboard())
+
+
+@router.callback_query(F.data == "cry_status")
+async def on_status(callback: CallbackQuery, db: Database, settings: Settings) -> None:
+    if not callback.from_user or not callback.message:
+        return
+
+    if await _is_blocked_callback(callback, db, settings):
+        await callback.answer()
+        return
+
+    quota = QuotaService(db, settings)
+    status = await quota.get_status(
+        callback.from_user.id,
+        callback.from_user.username,
+        callback.from_user.full_name,
+    )
+
+    await callback.answer()
+    await callback.message.answer(format_status_message(status), reply_markup=main_keyboard())
+
+
+@router.callback_query(F.data == "cry_help")
+async def on_help(callback: CallbackQuery, db: Database, settings: Settings) -> None:
+    if not callback.from_user or not callback.message:
+        return
+
+    if await _is_blocked_callback(callback, db, settings):
+        await callback.answer()
+        return
+
+    await callback.answer()
+    await callback.message.answer(HELP_TEXT, reply_markup=main_keyboard())
